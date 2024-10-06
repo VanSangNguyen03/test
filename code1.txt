@@ -1,0 +1,42 @@
+code
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.IOException;
+
+public class Main {
+    public static void main(String[] args) {
+        String filePath = "Sample.txt"; // Đường dẫn tới file dữ liệu
+        int countYearsAbove30 = 0; // Biến để đếm số năm có mức tiêu thụ trung bình > 30
+
+        try (BufferedReader br = new BufferedReader(new FileReader(filePath))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                String[] data = line.split("\\s+"); // Tách các giá trị trong dòng
+                
+                // Cột đầu tiên là năm (data[0]), các cột còn lại là mức tiêu thụ
+                String year = data[0]; 
+                double sum = 0;
+                int numValues = data.length - 1; // Trừ đi cột đầu tiên (năm)
+                
+                // Tính tổng mức tiêu thụ của các cột còn lại
+                for (int i = 1; i < data.length; i++) {
+                    sum += Double.parseDouble(data[i]);
+                }
+
+                // Tính mức tiêu thụ trung bình
+                double average = sum / numValues;
+                
+                // Kiểm tra mức tiêu thụ trung bình có lớn hơn 30 hay không
+                if (average > 30) {
+                    countYearsAbove30++;
+                    System.out.println("Year: " + year + " has average consumption > 30");
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        // In kết quả: số lượng năm có mức tiêu thụ trung bình lớn hơn 30
+        System.out.println("Number of years with average consumption > 30: " + countYearsAbove30);
+    }
+}
