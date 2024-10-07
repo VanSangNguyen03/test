@@ -1,76 +1,53 @@
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.DoubleWritable;
-import org.apache.hadoop.io.IntWritable;
-import org.apache.hadoop.io.Text;
-import org.apache.hadoop.mapreduce.Job;
-import org.apache.hadoop.mapreduce.Mapper;
-import org.apache.hadoop.mapreduce.Reducer;
-import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
-import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 
-import java.io.IOException;
+    public static class SalesMapper extends Mapper<Object, Text, Text, IntWritable> {
+        private final static IntWritable one = new IntWritable(1);
+        private Text country = new Text();
 
-public class ElectricityConsumption {
-
-    // Mapper class
-    public static class TokenizerMapper
-            extends Mapper<Object, Text, IntWritable, DoubleWritable> {
-
-        private final static DoubleWritable consumption = new DoubleWritable();
-        private IntWritable year = new IntWritable();
-
-        public void map(Object key, Text value, Context context
-        ) throws IOException, InterruptedException {
-            String line = value.toString();
-            String[] data = line.split("\\s+"); // Tách dữ liệu dựa vào khoảng trắng
-
-            if (data.length > 1) {
-                // Lấy năm từ cột đầu tiên
-                year.set(Integer.parseInt(data[0]));
-
-                // Lấy mức tiêu thụ trung bình từ cột cuối cùng
-                double averageConsumption = Double.parseDouble(data[data.length - 1]);
-
-                // Đặt giá trị mức tiêu thụ trung bình và ghi ra cặp key-value
-                consumption.set(averageConsumption);
-                context.write(year, consumption);
+        public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
+            
+            String[] fields = value.toString().split(",");
+            if (fields.length > 7) {
+                // Lấy trường "Country" (cột thứ 7)
+                country.set(fields[7]);
+                
+                context.write(country, one);
             }
         }
     }
 
-    // Reducer class
-    public static class IntSumReducer
-            extends Reducer<IntWritable, DoubleWritable, IntWritable, DoubleWritable> {
+    // Reducer Class
+    public static class SalesReducer extends Reducer<Text, IntWritable, Text, IntWritable> {
+        private IntWritable result = new IntWritable();
 
-        private final static double MAX_THRESHOLD = 30.0; // Ngưỡng tối đa là 30
-
-        public void reduce(IntWritable key, Iterable<DoubleWritable> values, Context context)
-                throws IOException, InterruptedException {
-            for (DoubleWritable val : values) {
-                // So sánh mức tiêu thụ với ngưỡng 30
-                if (val.get() > MAX_THRESHOLD) {
-                    context.write(key, val); // Chỉ ghi ra nếu lớn hơn 30
-                }
+        public void reduce(Text key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
+            int sum = 0;
+            for (IntWritable val : values) {
+                sum += val.get();
             }
+            result.set(sum);
+            context.write(key, result);
         }
     }
 
-    // Hàm chính để cấu hình và chạy Job
+    // Driver Method
     public static void main(String[] args) throws Exception {
         Configuration conf = new Configuration();
-        Job job = Job.getInstance(conf, "electricity consumption");
+        String[] otherArgs = new GenericOptionsParser(conf, args).getRemainingArgs();
+        if (otherArgs.length < 2) {
+            System.err.println("Usage: salescount <in> <out>");
+            System.exit(2);
+        }
 
-        job.setJarByClass(ElectricityConsumption.class);
-        job.setMapperClass(TokenizerMapper.class);
-        job.setReducerClass(IntSumReducer.class);
+        Job job = Job.getInstance(conf, "sales count");
+        job.setJarByClass(SalesCount.class);
+        job.setMapperClass(SalesMapper.class);
+        job.setCombinerClass(SalesReducer.class);
+        job.setReducerClass(SalesReducer.class);
+        job.setOutputKeyClass(Text.class);
+        job.setOutputValueClass(IntWritable.class);
 
-        job.setOutputKeyClass(IntWritable.class);
-        job.setOutputValueClass(DoubleWritable.class);
-
-        FileInputFormat.addInputPath(job, new Path(args[0]));  // Đường dẫn đầu vào
-        FileOutputFormat.setOutputPath(job, new Path(args[1])); // Đường dẫn đầu ra
+        FileInputFormat.addInputPath(job, new Path(otherArgs[0]));
+        FileOutputFormat.setOutputPath(job, new Path(otherArgs[1]));
 
         System.exit(job.waitForCompletion(true) ? 0 : 1);
     }
-}
